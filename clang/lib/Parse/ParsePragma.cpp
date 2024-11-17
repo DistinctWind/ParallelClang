@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTContext.h"
+#include "clang/Basic/DiagnosticLex.h"
 #include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
@@ -26,6 +27,7 @@
 #include "clang/Sema/SemaRISCV.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include <memory>
 #include <optional>
 using namespace clang;
 
@@ -306,6 +308,12 @@ struct PragmaMSIntrinsicHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
+struct PragmaPclangHandler : public PragmaHandler {
+  PragmaPclangHandler() : PragmaHandler("pclang") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
 // "\#pragma fenv_access (on)".
 struct PragmaMSFenvAccessHandler : public PragmaHandler {
   PragmaMSFenvAccessHandler() : PragmaHandler("fenv_access") {}
@@ -568,6 +576,9 @@ void Parser::initializePragmaHandlers() {
     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
   }
+
+  PclangPragmaHandler = std::make_unique<PragmaPclangHandler>();
+  PP.AddPragmaHandler("clang", PclangPragmaHandler.get());
 }
 
 void Parser::resetPragmaHandlers() {
@@ -702,6 +713,9 @@ void Parser::resetPragmaHandlers() {
     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
     RISCVPragmaHandler.reset();
   }
+
+  PP.RemovePragmaHandler("clang", PclangPragmaHandler.get());
+  PclangPragmaHandler.reset();
 }
 
 /// Handle the annotation token produced for #pragma unused(...)
@@ -4184,4 +4198,13 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
     Actions.RISCV().DeclareRVVBuiltins = true;
   else if (II->isStr("sifive_vector"))
     Actions.RISCV().DeclareSiFiveVectorBuiltins = true;
+}
+
+void PragmaPclangHandler::HandlePragma(Preprocessor &PP,
+                                       PragmaIntroducer Introducer,
+                                       Token &FirstToken) {
+  auto &Diags = PP.getDiagnostics();
+
+  Diags.Report(FirstToken.getLocation(), diag::warn_pragma_message)
+    << "Your warning message here";
 }
